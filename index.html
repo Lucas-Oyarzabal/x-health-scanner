@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scanner · Mi Salud IA</title>
+<style>
+  :root {
+    --bg: #070a0d;
+    --bg-panel: #0e1318;
+    --bg-inset: #0b0f13;
+    --border: rgba(148, 178, 190, 0.14);
+    --border-strong: rgba(148, 178, 190, 0.26);
+    --text: #eaf3f3;
+    --text-2: #b9c8cc;
+    --text-muted: #7f9298;
+    --text-dim: #5c6d73;
+    --accent: #38e8ce;
+    --accent-soft: rgba(56, 232, 206, 0.12);
+    --accent-line: rgba(56, 232, 206, 0.35);
+    --good: #4ee08a;
+    --good-soft: rgba(78, 224, 138, 0.13);
+    --warn: #ffb545;
+    --warn-soft: rgba(255, 181, 69, 0.13);
+    --critical: #ff6a5c;
+    --critical-soft: rgba(255, 106, 92, 0.13);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    padding: 18px 16px calc(40px + env(safe-area-inset-bottom));
+  }
+  header { margin-bottom: 18px; }
+  h1 { font-size: 17px; font-weight: 700; letter-spacing: .02em; margin: 0 0 2px; }
+  .tagline { font-size: 12px; color: var(--text-muted); margin: 0; }
+
+  .card {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px; margin-bottom: 14px;
+  }
+  button {
+    font-family: inherit; font-size: 14px; font-weight: 600;
+    border-radius: 10px; border: 1px solid var(--border-strong);
+    background: var(--bg-inset); color: var(--text);
+    padding: 12px 16px; cursor: pointer; width: 100%;
+  }
+  button.primary { background: var(--accent); color: #04201c; border-color: var(--accent); }
+  button.secondary { background: transparent; }
+  button:disabled { opacity: .5; }
+  input[type="text"] {
+    width: 100%; font-family: inherit; font-size: 15px;
+    background: var(--bg-inset); border: 1px solid var(--border-strong); border-radius: 10px;
+    color: var(--text); padding: 11px 12px; margin-top: 8px;
+  }
+  .row { display: flex; gap: 8px; margin-top: 10px; }
+  .row > * { flex: 1; }
+
+  #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
+  #reader video { border-radius: 12px; }
+
+  .hint { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin: 8px 0 0; }
+  .empty { color: var(--text-dim); font-size: 13px; padding: 14px 0; text-align: center; }
+
+  .product-name { font-size: 18px; font-weight: 700; margin: 0 0 3px; }
+  .product-brand { font-size: 13px; color: var(--text-muted); margin: 0 0 14px; }
+
+  .score-badge {
+    display: inline-flex; align-items: baseline; gap: 6px;
+    padding: 10px 16px; border-radius: 12px; margin-bottom: 14px;
+    font-weight: 700;
+  }
+  .score-badge .num { font-size: 26px; }
+  .score-badge .label { font-size: 13px; opacity: .85; }
+  .score-badge.good { background: var(--good-soft); color: var(--good); }
+  .score-badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .score-badge.critical { background: var(--critical-soft); color: var(--critical); }
+
+  .nutrient-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .nutrient { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .nutrient .k { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); display: block; }
+  .nutrient .v { font-size: 15px; font-weight: 600; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 9px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    margin: 2px 4px 2px 0;
+  }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.critical { background: var(--critical-soft); color: var(--critical); }
+  .pill.muted { background: rgba(148,178,190,.1); color: var(--text-muted); }
+
+  .scan-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 13.5px;
+  }
+  .scan-item:last-child { border-bottom: none; }
+  .scan-item .name { font-weight: 600; }
+  .scan-item .meta { font-size: 11px; color: var(--text-muted); }
+  .scan-item .remove { background: none; border: none; color: var(--text-dim); width: auto; padding: 4px 8px; font-size: 16px; }
+
+  h2.section-title { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); margin: 0 0 10px; }
+  .status-msg { font-size: 13px; color: var(--text-muted); text-align: center; padding: 10px 0; }
+  .error-box { background: var(--critical-soft); color: var(--critical); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Scanner · Mi Salud IA</h1>
+  <p class="tagline">Escaneá un producto y guardalo para cruzarlo con tu salud en la app del Mac</p>
+</header>
+
+<div class="card">
+  <div id="reader"></div>
+  <button class="secondary" id="toggleScanBtn" style="margin-top:10px;">Activar cámara</button>
+  <div class="row">
+    <input type="text" id="manualCode" placeholder="o escribí el código de barras" inputmode="numeric">
+    <button class="secondary" id="manualLookupBtn" style="flex:0 0 auto; width:auto; padding:11px 16px;">Buscar</button>
+  </div>
+  <div id="scanError"></div>
+</div>
+
+<div id="productCard"></div>
+
+<div class="card">
+  <h2 class="section-title">Escaneado hoy (<span id="scanCount">0</span>)</h2>
+  <div id="scanList"><div class="empty">Todavía no escaneaste nada.</div></div>
+  <button class="primary" id="shareBtn" style="margin-top:14px; display:none;">Compartir con Mi Salud IA →</button>
+  <p class="hint">Se guarda solo en este teléfono. "Compartir" abre el panel de iOS — elegí AirDrop a tu Mac para sumarlo a tu historial real.</p>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+// ---------- Puntaje estilo Yuka (mismo criterio que la app de escritorio) ----------
+const NUTRISCORE_POINTS = { a: 100, b: 75, c: 50, d: 25, e: 0 };
+const NOVA_POINTS = { 1: 100, 2: 75, 3: 40, 4: 0 };
+function yukaScore(nutriscore, nova) {
+  const ns = (nutriscore || "").toLowerCase();
+  const hasNs = ns in NUTRISCORE_POINTS, hasNova = nova in NOVA_POINTS;
+  if (!hasNs && !hasNova) return null;
+  const score = Math.round((hasNs ? NUTRISCORE_POINTS[ns] : 50) * 0.6 + (hasNova ? NOVA_POINTS[nova] : 50) * 0.4);
+  if (score >= 75) return { score, label: "Excelente", cls: "good" };
+  if (score >= 50) return { score, label: "Bueno", cls: "good" };
+  if (score >= 25) return { score, label: "Mediocre", cls: "warn" };
+  return { score, label: "Malo", cls: "critical" };
+}
+function computeFlags(n) {
+  const flags = [];
+  if (n.fat_100g > 17.5) flags.push("alto en grasas");
+  if (n.saturated_fat_100g > 5) flags.push("alto en grasas saturadas");
+  if (n.sugar_100g > 22.5) flags.push("alto en azúcar");
+  if (n.sodium_mg_100g > 600) flags.push("alto en sodio");
+  if (n.nova_group === 4) flags.push("ultraprocesado");
+  return flags;
+}
+
+// ---------- Historial de la sesión (localStorage, solo en este teléfono) ----------
+const STORAGE_KEY = "misaludia_scans";
+function getScans() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; } }
+function saveScans(list) { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
+
+function renderScanList() {
+  const scans = getScans();
+  document.getElementById("scanCount").textContent = scans.length;
+  const list = document.getElementById("scanList");
+  document.getElementById("shareBtn").style.display = scans.length ? "block" : "none";
+  if (!scans.length) { list.innerHTML = '<div class="empty">Todavía no escaneaste nada.</div>'; return; }
+  list.innerHTML = scans.map((s, i) => `
+    <div class="scan-item">
+      <div><div class="name">${escapeHtml(s.name)}</div><div class="meta">${s.calories_100g != null ? Math.round(s.calories_100g) + " kcal/100g" : ""}</div></div>
+      <button class="remove" data-i="${i}">✕</button>
+    </div>`).join("");
+  list.querySelectorAll(".remove").forEach((btn) => btn.addEventListener("click", () => {
+    const scans2 = getScans();
+    scans2.splice(Number(btn.dataset.i), 1);
+    saveScans(scans2);
+    renderScanList();
+  }));
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// ---------- Búsqueda en Open Food Facts (pública, sin clave) ----------
+async function lookupBarcode(code) {
+  const statusEl = document.getElementById("productCard");
+  statusEl.innerHTML = '<div class="card status-msg">Buscando…</div>';
+  showError("");
+  try {
+    const resp = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`);
+    const data = await resp.json();
+    if (data.status !== 1 || !data.product) {
+      statusEl.innerHTML = "";
+      showError("No encontré ese producto en Open Food Facts. Probá escribir el código a mano, o puede que este producto todavía no esté cargado en la base.");
+      return;
+    }
+    renderProduct(data.product, code);
+  } catch (err) {
+    statusEl.innerHTML = "";
+    showError("No se pudo conectar — revisá tu conexión a internet.");
+  }
+}
+
+function showError(msg) {
+  document.getElementById("scanError").innerHTML = msg ? `<div class="error-box">${escapeHtml(msg)}</div>` : "";
+}
+
+let lastProduct = null;
+
+function renderProduct(product, code) {
+  const n = product.nutriments || {};
+  const item = {
+    code,
+    name: product.product_name || "Producto sin nombre",
+    brand: (product.brands || "").split(",")[0] || null,
+    matched_name: product.product_name || null,
+    source: "open_food_facts",
+    calories_100g: n["energy-kcal_100g"] ?? null,
+    protein_100g: n["proteins_100g"] ?? null,
+    fat_100g: n["fat_100g"] ?? null,
+    saturated_fat_100g: n["saturated-fat_100g"] ?? null,
+    carbs_100g: n["carbohydrates_100g"] ?? null,
+    sugar_100g: n["sugars_100g"] ?? null,
+    fiber_100g: n["fiber_100g"] ?? null,
+    sodium_mg_100g: n["sodium_100g"] != null ? n["sodium_100g"] * 1000 : null,
+    nova_group: product.nova_group ?? null,
+    nutriscore: product.nutriscore_grade ?? null,
+    quantity: "1 unidad",
+    scanned_at: new Date().toISOString(),
+  };
+  item.flags = computeFlags(item);
+  lastProduct = item;
+
+  const yuka = yukaScore(item.nutriscore, item.nova_group);
+  const scoreHtml = yuka ? `<div class="score-badge ${yuka.cls}"><span class="num">${yuka.score}</span><span class="label">/100 · ${yuka.label}</span></div>` : "";
+  const flagsHtml = item.flags.map((f) => `<span class="pill warn">${f}</span>`).join("");
+
+  document.getElementById("productCard").innerHTML = `
+    <div class="card">
+      <p class="product-name">${escapeHtml(item.name)}</p>
+      ${item.brand ? `<p class="product-brand">${escapeHtml(item.brand)}</p>` : ""}
+      ${scoreHtml}
+      <div class="nutrient-grid">
+        <div class="nutrient"><span class="k">Calorías</span><span class="v">${item.calories_100g != null ? Math.round(item.calories_100g) + " kcal" : "—"}</span></div>
+        <div class="nutrient"><span class="k">Proteínas</span><span class="v">${item.protein_100g != null ? item.protein_100g + " g" : "—"}</span></div>
+        <div class="nutrient"><span class="k">Grasas</span><span class="v">${item.fat_100g != null ? item.fat_100g + " g" : "—"}</span></div>
+        <div class="nutrient"><span class="k">Grasas sat.</span><span class="v">${item.saturated_fat_100g != null ? item.saturated_fat_100g + " g" : "—"}</span></div>
+        <div class="nutrient"><span class="k">Azúcares</span><span class="v">${item.sugar_100g != null ? item.sugar_100g + " g" : "—"}</span></div>
+        <div class="nutrient"><span class="k">Sodio</span><span class="v">${item.sodium_mg_100g != null ? Math.round(item.sodium_mg_100g) + " mg" : "—"}</span></div>
+      </div>
+      ${flagsHtml}
+      <button class="primary" id="addScanBtn" style="margin-top:14px;">Agregar a mi lista de hoy</button>
+    </div>`;
+  document.getElementById("addScanBtn").addEventListener("click", () => {
+    const scans = getScans();
+    scans.push(lastProduct);
+    saveScans(scans);
+    renderScanList();
+    document.getElementById("addScanBtn").textContent = "Agregado ✓";
+    document.getElementById("addScanBtn").disabled = true;
+  });
+}
+
+// ---------- Cámara (html5-qrcode) ----------
+let scanner = null, scanning = false;
+document.getElementById("toggleScanBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("toggleScanBtn");
+  if (scanning) {
+    if (scanner) await scanner.stop().catch(() => {});
+    scanning = false;
+    btn.textContent = "Activar cámara";
+    return;
+  }
+  try {
+    scanner = new Html5Qrcode("reader");
+    await scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 260, height: 140 } },
+      (decodedText) => {
+        lookupBarcode(decodedText);
+      },
+      () => {} // errores de frame individual: se ignoran, es normal mientras enfoca
+    );
+    scanning = true;
+    btn.textContent = "Apagar cámara";
+  } catch (err) {
+    showError("No se pudo abrir la cámara — revisá que le diste permiso a Safari, o escribí el código a mano abajo.");
+  }
+});
+
+document.getElementById("manualLookupBtn").addEventListener("click", () => {
+  const code = document.getElementById("manualCode").value.trim();
+  if (code) lookupBarcode(code);
+});
+
+// ---------- Compartir con la app del Mac (AirDrop vía panel nativo de iOS) ----------
+document.getElementById("shareBtn").addEventListener("click", async () => {
+  const scans = getScans();
+  const payload = JSON.stringify({ exported_at: new Date().toISOString(), items: scans }, null, 2);
+  const filename = `escaneos-mi-salud-ia-${new Date().toISOString().slice(0, 10)}.json`;
+  const file = new File([payload], filename, { type: "application/json" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: "Escaneos Mi Salud IA" });
+    } else {
+      // recurso de respaldo si el navegador no soporta compartir archivos: descarga directa
+      const url = URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+  } catch (err) {
+    // el usuario canceló el panel de compartir — no es un error real
+  }
+});
+
+renderScanList();
+</script>
+</body>
+</html>
