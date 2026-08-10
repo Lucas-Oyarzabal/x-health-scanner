@@ -110,7 +110,7 @@
 
 <header>
   <h1>Scanner · Mi Salud IA</h1>
-  <p class="tagline">Escaneá un producto y guardalo para cruzarlo con tu salud en la app del Mac</p>
+  <p class="tagline">Escaneá comida o productos de cuidado personal (champú, jabón, pasta dental...) y guardalos para cruzarlos con tu salud en la app del Mac</p>
 </header>
 
 <div class="card">
@@ -157,6 +157,23 @@ function computeFlags(n) {
   return flags;
 }
 
+// ---------- Alertas de ingredientes de cuidado personal (mismo criterio que la app de escritorio) ----------
+const CARE_INGREDIENT_FLAGS = [
+  [["sodium lauryl sulfate", "sodium laureth sulfate", "ammonium lauryl sulfate"], "contiene sulfatos"],
+  [["paraben"], "contiene parabenos"],
+  [["parfum", "fragrance", "fragancia"], "contiene fragancia"],
+  [["dmdm hydantoin", "quaternium-15", "imidazolidinyl urea", "diazolidinyl urea"], "conservantes con formaldehído"],
+  [["phthalate", "ftalato"], "contiene ftalatos"],
+  [["alcohol denat"], "contiene alcohol desnaturalizado"],
+  [["triclosan"], "contiene triclosán"],
+  [["peg-"], "contiene compuestos PEG"],
+];
+function computeCareFlags(ingredientsText) {
+  if (!ingredientsText) return [];
+  const normalized = ingredientsText.toLowerCase();
+  return CARE_INGREDIENT_FLAGS.filter(([kws]) => kws.some((kw) => normalized.includes(kw))).map(([, label]) => label);
+}
+
 // ---------- Historial de la sesión (localStorage, solo en este teléfono) ----------
 const STORAGE_KEY = "misaludia_scans";
 function getScans() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; } }
@@ -168,11 +185,16 @@ function renderScanList() {
   const list = document.getElementById("scanList");
   document.getElementById("shareBtn").style.display = scans.length ? "block" : "none";
   if (!scans.length) { list.innerHTML = '<div class="empty">Todavía no escaneaste nada.</div>'; return; }
-  list.innerHTML = scans.map((s, i) => `
+  list.innerHTML = scans.map((s, i) => {
+    const meta = s.type === "care"
+      ? (s.brand || "Cuidado personal")
+      : (s.calories_100g != null ? Math.round(s.calories_100g) + " kcal/100g" : "");
+    return `
     <div class="scan-item">
-      <div><div class="name">${escapeHtml(s.name)}</div><div class="meta">${s.calories_100g != null ? Math.round(s.calories_100g) + " kcal/100g" : ""}</div></div>
+      <div><div class="name">${escapeHtml(s.name)}</div><div class="meta">${escapeHtml(meta)}</div></div>
       <button class="remove" data-i="${i}">✕</button>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   list.querySelectorAll(".remove").forEach((btn) => btn.addEventListener("click", () => {
     const scans2 = getScans();
     scans2.splice(Number(btn.dataset.i), 1);
@@ -185,24 +207,71 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-// ---------- Búsqueda en Open Food Facts (pública, sin clave) ----------
+// ---------- Búsqueda: primero Open Food Facts, si no aparece, Open Beauty Facts ----------
+// (comida y cuidado personal son proyectos hermanos de la misma organización, mismo
+// formato de API — un código de barras solo puede estar en una de las dos bases).
 async function lookupBarcode(code) {
   const statusEl = document.getElementById("productCard");
   statusEl.innerHTML = '<div class="card status-msg">Buscando…</div>';
   showError("");
   try {
-    const resp = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`);
-    const data = await resp.json();
-    if (data.status !== 1 || !data.product) {
-      statusEl.innerHTML = "";
-      showError("No encontré ese producto en Open Food Facts. Probá escribir el código a mano, o puede que este producto todavía no esté cargado en la base.");
+    const foodResp = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`);
+    const foodData = await foodResp.json();
+    if (foodData.status === 1 && foodData.product) {
+      renderProduct(foodData.product, code);
       return;
     }
-    renderProduct(data.product, code);
+    const careResp = await fetch(`https://world.openbeautyfacts.org/api/v2/product/${encodeURIComponent(code)}.json`);
+    const careData = await careResp.json();
+    if (careData.status === 1 && careData.product) {
+      renderCareProduct(careData.product, code);
+      return;
+    }
+    statusEl.innerHTML = "";
+    showError("No encontré ese producto ni en Open Food Facts ni en Open Beauty Facts. Probá escribir el código a mano, o puede que todavía no esté cargado en ninguna base.");
   } catch (err) {
     statusEl.innerHTML = "";
     showError("No se pudo conectar — revisá tu conexión a internet.");
   }
+}
+
+function renderCareProduct(product, code) {
+  const item = {
+    code,
+    type: "care",
+    name: product.product_name || "Producto sin nombre",
+    brand: (product.brands || "").split(",")[0] || null,
+    barcode: code,
+    ingredients_text: product.ingredients_text || null,
+    category: null,
+    scanned_at: new Date().toISOString(),
+  };
+  item.flags = computeCareFlags(item.ingredients_text);
+  lastProduct = item;
+
+  const flagsHtml = item.flags.map((f) => `<span class="pill warn">${f}</span>`).join("");
+  const ingredientsHtml = item.ingredients_text
+    ? `<p class="hint" style="margin-top:0;">${escapeHtml(item.ingredients_text)}</p>`
+    : `<p class="hint" style="margin-top:0;">Este producto no tiene lista de ingredientes cargada todavía.</p>`;
+
+  document.getElementById("productCard").innerHTML = `
+    <div class="card">
+      <p class="product-name">${escapeHtml(item.name)}</p>
+      ${item.brand ? `<p class="product-brand">${escapeHtml(item.brand)}</p>` : ""}
+      ${flagsHtml ? `<div style="margin-bottom:10px;">${flagsHtml}</div>` : ""}
+      <label style="font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim);">Ingredientes</label>
+      ${ingredientsHtml}
+      <p class="hint" style="margin-top:0;">El cruce con tus alergias/condiciones de piel se hace al importar esto en la app del Mac.</p>
+      <button class="primary" id="addScanBtn" style="margin-top:6px;">Agregar a mi lista de hoy</button>
+    </div>`;
+  document.getElementById("addScanBtn").addEventListener("click", () => {
+    const scans = getScans();
+    scans.push(lastProduct);
+    saveScans(scans);
+    renderScanList();
+    document.getElementById("addScanBtn").textContent = "Agregado ✓";
+    document.getElementById("addScanBtn").disabled = true;
+  });
 }
 
 function showError(msg) {
@@ -215,6 +284,7 @@ function renderProduct(product, code) {
   const n = product.nutriments || {};
   const item = {
     code,
+    type: "food",
     name: product.product_name || "Producto sin nombre",
     brand: (product.brands || "").split(",")[0] || null,
     matched_name: product.product_name || null,
