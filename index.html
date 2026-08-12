@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Scanner · Mi Salud IA</title>
+<title>Scanner · X Health</title>
 <style>
   :root {
     --bg: #070a0d;
@@ -109,7 +109,7 @@
 <body>
 
 <header>
-  <h1>Scanner · Mi Salud IA</h1>
+  <h1>Scanner · X Health</h1>
   <p class="tagline">Escaneá comida o productos de cuidado personal (champú, jabón, pasta dental...) y guardalos para cruzarlos con tu salud en la app del Mac</p>
 </header>
 
@@ -128,7 +128,7 @@
 <div class="card">
   <h2 class="section-title">Escaneado hoy (<span id="scanCount">0</span>)</h2>
   <div id="scanList"><div class="empty">Todavía no escaneaste nada.</div></div>
-  <button class="primary" id="shareBtn" style="margin-top:14px; display:none;">Compartir con Mi Salud IA →</button>
+  <button class="primary" id="shareBtn" style="margin-top:14px; display:none;">Compartir con X Health →</button>
   <p class="hint">Se guarda solo en este teléfono. "Compartir" abre el panel de iOS — elegí AirDrop a tu Mac para sumarlo a tu historial real.</p>
 </div>
 
@@ -371,11 +371,11 @@ document.getElementById("manualLookupBtn").addEventListener("click", () => {
 document.getElementById("shareBtn").addEventListener("click", async () => {
   const scans = getScans();
   const payload = JSON.stringify({ exported_at: new Date().toISOString(), items: scans }, null, 2);
-  const filename = `escaneos-mi-salud-ia-${new Date().toISOString().slice(0, 10)}.json`;
+  const filename = `escaneos-x-health-${new Date().toISOString().slice(0, 10)}.json`;
   const file = new File([payload], filename, { type: "application/json" });
   try {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: "Escaneos Mi Salud IA" });
+      await navigator.share({ files: [file], title: "Escaneos X Health" });
     } else {
       // recurso de respaldo si el navegador no soporta compartir archivos: descarga directa
       const url = URL.createObjectURL(file);
